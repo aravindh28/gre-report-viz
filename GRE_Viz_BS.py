@@ -37,9 +37,11 @@ def add_headers_to_df(h: list, t: list) -> list:
         data = {'Section' : bs_table_tag.find_previous_sibling('h3').get_text(), 'Category': bs_table_tag.find_previous_sibling('h4').get_text()}
         pd_table = pd_table.assign(**data)
         df_list.append(pd_table)
+
     
     return df_list
 
+#main function
 if __name__ == "__main__":
         
     clean_table = table_clean_up(tables)
