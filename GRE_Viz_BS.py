@@ -1,21 +1,19 @@
 from bs4 import BeautifulSoup
-from pathlib import Path
+#from pathlib import Path
 from IPython.display import display
+import streamlit as st
 import pandas as pd
+from datetime import time
+from io import StringIO
 
-'''This is a script to scrape data from ETS GRE diagnostic report html page for the Quant section and convert them into a df to be visualized by a Streamlit App'''
+#'''This is a script to scrape data from ETS GRE diagnostic report html page for the Quant section and convert them into a df to be visualized by a Streamlit App'''
 
-# enter path to the html file of quant section of GRE - TBD will be replaced by stremalit upload or smth
-html_path = r'C:\Users\Admin\Desktop\GRE Diagnostic Analyser\ETS GRE Diagnostic Service Quantitative Reasoning.htm'
+# -------------------- TO DOs --------------------
+# 1. Convert datatypes in final html table to proper format
+# 2. Convert into a basic streamlit app with basic charts
+# 3. Allow user to input the html file
+# 4. Is possible, try to web scrape with python twill library??
 
-# create a BeautifulSoup object of the file to parse through the html, using lxml parser
-soup = BeautifulSoup(Path(html_path).read_text(), features="lxml")
-
-# find all tables present in the bs object, searching for tag table
-headings = soup.find_all('table')
-
-# read_html function coverts all tables present in a html file directly to dataframes
-tables = pd.read_html(html_path)
 
 # takes on the tables which have the table structure we need, also while filtering only for rows which have values in timespent(the html file o/p was a bit weird, so filtering here makes it easy)
 def table_clean_up(tab_df_list: list) -> list:
@@ -37,14 +35,54 @@ def add_headers_to_df(h: list, t: list) -> list:
         data = {'Section' : bs_table_tag.find_previous_sibling('h3').get_text(), 'Category': bs_table_tag.find_previous_sibling('h4').get_text()}
         pd_table = pd_table.assign(**data)
         df_list.append(pd_table)
-
-    
+        
     return df_list
 
-#main function
+def highlight_df_rows(og_df: pd.DataFrame) -> pd.DataFrame:
+    mask_df = og_df.copy()
+    mask = mask_df['Right/Wrong'] == "Right"
+    mask_df.loc[mask,:] = 'background-color: green'
+    mask = mask_df['Right/Wrong'] == "Wrong"
+    mask_df.loc[mask,:] = 'background-color: red'
+    print(mask_df)
+    return mask_df
+    
+
+def convert_dtypes(og_df: pd.DataFrame) -> pd.DataFrame:
+    convert_dict = {'Difficulty Level': int}
+    og_df['Time Spent'] = pd.to_datetime(og_df['Time Spent'], format="%M:%M")
+    og_df = og_df.astype(convert_dict)  
+    return og_df
+  
+
+# main function
 if __name__ == "__main__":
-        
-    clean_table = table_clean_up(tables)
+    
+    # enter path to the html file of quant section of GRE - TBD will be replaced by streamlit upload or smth
+
+    data = st.file_uploader("Upload html file here", type="htm")
+
+    default_html_path = r'C:\Users\Admin\Desktop\GRE Diagnostic Analyser\ETS GRE Diagnostic Service Quantitative Reasoning.htm'
+
+    if data is not None:
+        #st.write(data.read())
+        stringio = StringIO(data.getvalue().decode("windows-1252"))
+
+    else:
+        data = open(default_html_path, "r")
+        data = data.read()
+        stringio = StringIO(data)
+
+    # create a BeautifulSoup object of the file to parse through the html, using lxml parser
+    soup = BeautifulSoup(data, features="lxml")
+
+    # find all tables present in the bs object, searching for tag table
+    headings = soup.find_all('table')
+
+    # read_html function coverts all tables present in a html file directly to dataframes
+    tables = pd.read_html(stringio)
+
+    clean_table = table_clean_up(tables) 
     clean_headings = html_header_cleanup(headings)
     new_df_list = add_headers_to_df(clean_headings, clean_table)
 
@@ -62,7 +100,25 @@ if __name__ == "__main__":
     full_pd = pd.concat(new_df_list, axis=0)
     full_pd.reset_index(drop = True, inplace=True)
 
-    display(full_pd)
+    print(full_pd.dtypes)
+
+    full_pd = convert_dtypes(full_pd)
+
+    print(full_pd.dtypes)
+
+    full_pd.style.apply(highlight_df_rows, axis= None)
+
+    #display(full_pd)
+
+    tab1, tab2 = st.tabs(["Tab 1", "Tab 2"])
+    options = st.multiselect('Question Type',[1,2])
+    #st.write(full_pd)
+    #tab1.write("sd")
+    tab1.title("GRE Quant score visualizer")
+    tab1.markdown("Use this app to visalize your diagnostic report data! :) ")
+    tab1.info("Currently works for quant section of the OLD GRE, need to test with new diagnostic versions")
+    tab2.dataframe(full_pd)
+
 
 
 
